@@ -8,40 +8,89 @@
 
 'use strict';
 
-module.exports = function (app) {
+const mongoose = require('mongoose');
+
+module.exports = (app) => {
+
+  mongoose.connect(process.env.DB_URI, {useNewUrlParser: true, useUnifiedTopology: true});
+
+  const titleSchema = new mongoose.Schema({
+    title: String,
+    comments: [String],
+    commentcount: Number
+  });
+
+  const Title = mongoose.model('Title', titleSchema);
 
   app.route('/api/books')
-    .get(function (req, res){
-      //response will be array of book objects
-      //json res format: [{"_id": bookid, "title": book_title, "commentcount": num_of_comments },...]
+    .get((req, res) => {
+
+      Title.find({}, (err, data) => {
+        res.json(data);
+      });
     })
     
-    .post(function (req, res){
-      let title = req.body.title;
-      //response will contain new book object including atleast _id and title
+    .post((req, res) => {
+
+      if(!req.body.title){
+        res.send('missing required field title');
+        return
+      }
+
+      const title = new Title({
+        title: req.body.title,
+        commentcount: 0
+      });
+
+      title.save((err,data) => 
+        res.json(data)
+      );
     })
     
-    .delete(function(req, res){
-      //if successful response will be 'complete delete successful'
+    .delete((req, res) => {
+      Title.deleteMany({}, (err) => 
+          res.send('complete delete successful')
+      )
     });
 
 
 
   app.route('/api/books/:id')
-    .get(function (req, res){
-      let bookid = req.params.id;
-      //json res format: {"_id": bookid, "title": book_title, "comments": [comment,comment,...]}
+    .get( (req, res) => {
+      const bookid = req.params.id;
+
+      Title.findById(bookid, (err,data) => 
+        !data ?   
+          res.send('no book exists')
+        :         
+          res.json(data)
+      )
     })
     
-    .post(function(req, res){
-      let bookid = req.params.id;
-      let comment = req.body.comment;
-      //json res format same as .get
+    .post((req, res) => {
+      const bookid = req.params.id;
+      const comment = req.body.comment;
+
+      if(!comment){
+        res.send('missing required field comment');
+        return;
+      }
+
+      Title.findByIdAndUpdate({_id: bookid},{$push: {comments: comment}, $inc: {commentcount: 1}},{useFindAndModify: false, new: true},  (err,data) => 
+        !data ?
+          res.send('no book exists')
+        :
+          res.json(data)
+      )
+
     })
     
-    .delete(function(req, res){
+    .delete((req, res) => {
       let bookid = req.params.id;
-      //if successful response will be 'delete successful'
+      Title.findByIdAndDelete(bookid, (err, data) => {
+        ! data ?  res.send('no book exists')
+        :         res.send('delete successful')
+      })
     });
   
 };
